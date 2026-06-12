@@ -100,43 +100,6 @@
             color: #ddd;
         }
 
-        /* ========================= HISTORY CONTROLS ========================= */
-        #history-controls {
-            position: absolute;
-            top: 18px;
-            right: 22px;
-            z-index: 110;
-            display: flex;
-            gap: 8px;
-        }
-
-        .history-btn {
-            width: 44px;
-            height: 44px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            line-height: 1;
-            color: var(--text);
-            background: rgba(0,0,0,.45);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,.12);
-            border-radius: 50%;
-            cursor: pointer;
-            transition: .2s;
-        }
-
-        .history-btn:hover:not(:disabled) {
-            background: rgba(253, 224, 102, 0.25);
-            border-color: var(--gold);
-        }
-
-        .history-btn:disabled {
-            opacity: .35;
-            cursor: not-allowed;
-        }
-
         /* ========================= OBJECTEN OP CANVAS ========================= */
         .placed-obj {
             position: absolute;
@@ -373,7 +336,7 @@
 
         #fur-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 8px;
         }
 
@@ -507,13 +470,8 @@
 
         <section id="canvas-title">
             <h2>Dalí Atelier 🎨</h2>
-            <p>Maak je eigen surrealistische droomwereld</p>
+            <p>Maak je eigen surrealistische droomdier</p>
         </section>
-
-        <div id="history-controls">
-            <button id="undo-btn" class="history-btn" title="Ongedaan maken">↶</button>
-            <button id="redo-btn" class="history-btn" title="Opnieuw">↷</button>
-        </div>
 
         <div id="toast">
             Klik op of sleep objecten om ze op het doek te plaatsen ✨
@@ -559,6 +517,7 @@
                         <button class="draw-subtab-btn active" data-fillmode="none">Lijn</button>
                         <button class="draw-subtab-btn" data-fillmode="color">Vulling</button>
                         <button class="draw-subtab-btn" data-fillmode="fur1">Textuur</button>
+                        <button class="draw-subtab-btn" id="select-mode-btn" data-fillmode="select">Selecteer</button>
                     </nav>
 
                     <div id="draw-settings">
@@ -591,6 +550,12 @@
                             <label style="margin-bottom: 4px;">Textuur:</label>
                             <div id="fur-grid"></div>
                         </div>
+
+                        <!-- Selecteer-modus info -->
+                        <div class="draw-setting-row" data-visible-in="select">
+                            <label>Modus:</label>
+                            <span style="color: var(--muted);">Klik op een tekening om te selecteren, flippen, draaien of verwijderen</span>
+                        </div>
                     </div>
                     <p id="draw-hint" style="font-size: 12px; color: var(--muted); text-align: center; margin-top: 10px;">
                         Teken op het doek. Zodra je loslaat, wordt je tekening een object!
@@ -621,12 +586,15 @@
            DATA
         ================================================== */
         const BACKGROUNDS = [
-            { label: 'The Elephants', image: './img/The-Elephants-1024x820.jpeg' },
-            { label: 'Vlinderschip', image: './img/vlinderschip.jpg' },
+            { label: 'bg1', image: './img/bg-01.jpg' },
+            { label: 'bg2', image: './img/bg-02.jpg' },
+            { label: 'bg3', image: './img/bg-03.jpg' },
+            { label: 'bg4', image: './img/bg-04.jpg' },
+            { label: 'bg', image: './img/bg-05.jpg' }
         ];
 
         const OBJECTS = [];
-        for(let i=1; i<=22; i++) {
+        for(let i=1; i<=44; i++) {
             let num = i < 10 ? '0' + i : i;
             OBJECTS.push({ name: 'Object ' + i, image: `./img/Dali-${num}.png` });
         }
@@ -670,9 +638,15 @@
                 document.getElementById(btn.dataset.tab).classList.add('active');
 
                 if (btn.dataset.tab === 'tab-tekenen') {
-                    drawingMode = true;
-                    document.body.classList.add('drawing-mode');
-                    selectObject(null);
+                    const activeSubtab = document.querySelector('.draw-subtab-btn.active');
+                    if (activeSubtab && activeSubtab.dataset.fillmode === 'select') {
+                        drawingMode = false;
+                        document.body.classList.remove('drawing-mode');
+                    } else {
+                        drawingMode = true;
+                        document.body.classList.add('drawing-mode');
+                        selectObject(null);
+                    }
                 } else {
                     drawingMode = false;
                     document.body.classList.remove('drawing-mode');
@@ -686,8 +660,15 @@
         let currentFillMode = 'none'; // 'none' | 'color' | 'fur1'..'fur5'
 
         function updateDrawSettingsVisibility() {
-            // Bepaal categorie: 'none', 'color' of 'fur'
-            const category = FUR_KEYS.includes(currentFillMode) ? 'fur' : currentFillMode;
+            // Bepaal categorie: 'none', 'color', 'fur' of 'select'
+            let category;
+            if (currentFillMode === 'select') {
+                category = 'select';
+            } else if (FUR_KEYS.includes(currentFillMode)) {
+                category = 'fur';
+            } else {
+                category = currentFillMode;
+            }
 
             document.querySelectorAll('#draw-settings [data-visible-in]').forEach(row => {
                 const cats = row.dataset.visibleIn.split(',');
@@ -702,16 +683,21 @@
 
                 const mode = btn.dataset.fillmode;
 
-                if (FUR_KEYS.includes(mode)) {
-                    // Textuur-tab: gebruik de laatst geselecteerde textuur (of de eerste)
-                    currentFillMode = FUR_KEYS.includes(currentFillMode) ? currentFillMode : 'fur1';
+                if (mode === 'select') {
+                    currentFillMode = 'select';
+                    drawingMode = false;
+                    document.body.classList.remove('drawing-mode');
                 } else {
-                    currentFillMode = mode;
+                    if (FUR_KEYS.includes(mode)) {
+                        // Textuur-tab: gebruik de laatst geselecteerde textuur (of de eerste)
+                        currentFillMode = FUR_KEYS.includes(currentFillMode) ? currentFillMode : 'fur1';
+                    } else {
+                        currentFillMode = mode;
+                    }
+                    drawingMode = true;
+                    document.body.classList.add('drawing-mode');
+                    selectObject(null);
                 }
-                drawingMode = true;
-                document.body.classList.add('drawing-mode');
-                selectObject(null);
-
                 updateDrawSettingsVisibility();
                 updateFurGridSelection();
             });
@@ -827,29 +813,23 @@
 
             let moving = false, resizing = false, rotating = false;
             let startX, startY, startLeft, startTop, startWidth;
-            let angle = parseFloat(element.dataset.angle) || 0;
-            let flipped = element.dataset.flipped === '1';
+            let angle = 0, flipped = false;
 
             const updateTransform = () => {
                 element.style.transform = `rotate(${angle}deg) scaleX(${flipped ? -1 : 1})`;
-                element.dataset.angle = angle;
-                element.dataset.flipped = flipped ? '1' : '0';
             };
-            updateTransform();
 
             element.querySelector('.delete-btn').addEventListener('click', e => {
                 e.stopPropagation();
                 element.remove();
                 if(selected === element) selected = null;
                 updateLayerMenu();
-                pushHistory();
             });
 
             element.querySelector('.flip-btn').addEventListener('click', e => {
                 e.stopPropagation();
                 flipped = !flipped;
                 updateTransform();
-                pushHistory();
             });
 
             element.addEventListener('pointerdown', e => {
@@ -895,9 +875,6 @@
             });
 
             window.addEventListener('pointerup', () => {
-                if (moving || resizing || rotating) {
-                    pushHistory();
-                }
                 moving = false; resizing = false; rotating = false;
             });
         }
